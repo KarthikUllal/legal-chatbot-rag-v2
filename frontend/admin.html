@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Legal AI Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <!-- Admin Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="bg-gradient-to-br from-blue-600 to-purple-600 text-white w-10 h-10 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-800">Legal AI Admin</h1>
+                        <p class="text-sm text-gray-500">
+                            Document Management & System Monitoring
+                        </p>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <a href="index.html#chatbot"
+                        class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-gray-700 transition flex items-center gap-2">
+                        <i class="fas fa-arrow-left"></i>
+                        Back to Chat
+                    </a>
+                    <button id="logoutBtn"
+                        class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Admin Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- System Overview -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <i class="fas fa-tachometer-alt text-blue-600"></i>
+                System Overview
+            </h2>
+
+            <!-- Stats Cards - Updated to 4 cards for better info -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Total Documents</p>
+                            <h3 class="text-3xl font-bold text-gray-800 mt-2" id="totalDocuments">0</h3>
+                        </div>
+                        <i class="fas fa-file-alt text-2xl text-blue-500"></i>
+                    </div>
+                </div>
+
+                <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Total Chunks</p>
+                            <h3 class="text-3xl font-bold text-gray-800 mt-2" id="totalChunks">0</h3>
+                        </div>
+                        <i class="fas fa-layer-group text-2xl text-green-500"></i>
+                    </div>
+                </div>
+
+                <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">System Status</p>
+                            <h3 class="text-xl font-bold text-gray-800 mt-2" id="systemStatus">Checking...</h3>
+                        </div>
+                        <i class="fas fa-server text-2xl text-purple-500"></i>
+                    </div>
+                </div>
+
+                <div class="stat-card bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Embedding Model</p>
+                            <h3 class="text-xl font-bold text-gray-800 mt-2" id="embeddingModel">all-MiniLM-L6-v2</h3>
+                        </div>
+                        <i class="fas fa-brain text-2xl text-orange-500"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Document Management -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <i class="fas fa-database text-blue-600"></i>
+                Document Management
+            </h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Upload Section -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2">
+                        <i class="fas fa-upload text-green-600"></i>
+                        Upload Legal Documents
+                    </h3>
+
+                    <div class="mb-4">
+                        <p class="text-sm text-gray-600 mb-2">
+                            <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+                            Upload PDF files to add to the knowledge base
+                        </p>
+                    </div>
+
+                    <div class="upload-area border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition mb-4"
+                        id="uploadArea">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
+                        <p class="text-gray-600 mb-2 font-medium">
+                            Drop PDF files here or click to upload
+                        </p>
+                        <p class="text-sm text-gray-500 mb-4">
+                            Supports PDF files (max 10MB each)
+                        </p>
+                        <button type="button"
+                            class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-plus mr-2"></i>Select Files
+                        </button>
+                        <input type="file" id="fileInput" class="hidden" accept=".pdf" multiple />
+                    </div>
+
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-info-circle text-blue-600 mt-1"></i>
+                            <div>
+                                <p class="text-sm text-blue-800 font-medium">
+                                    Supported Documents:
+                                </p>
+                                <p class="text-xs text-blue-700 mt-1">
+                                    IPC, BNS, IT Act, Consumer Protection, Domestic Violence
+                                    Act, CrPC, Evidence Act, Contract Act, and other Indian
+                                    legal documents.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3" id="uploadProgress"></div>
+                </div>
+
+                <!-- Document List -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fas fa-list text-purple-600"></i>
+                            Uploaded Documents
+                        </h3>
+                        <button id="refreshDocuments"
+                            class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg text-gray-700 transition flex items-center gap-2 text-sm">
+                            <i class="fas fa-sync-alt"></i>
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div class="space-y-4 max-h-96 overflow-y-auto" id="documentsList">
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-folder-open text-4xl mb-3"></i>
+                            <p>No documents uploaded yet</p>
+                            <p class="text-sm mt-2">
+                                Upload your first legal document to get started
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Actions -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <i class="fas fa-bolt text-yellow-600"></i>
+                Quick Actions
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <button id="refreshStats"
+                    class="bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl transition font-medium flex items-center justify-center gap-2">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh Stats
+                </button>
+
+                <button id="testBackend"
+                    class="bg-purple-600 hover:bg-purple-700 text-white py-4 rounded-xl transition font-medium flex items-center justify-center gap-2">
+                    <i class="fas fa-plug"></i>
+                    Test Connection
+                </button>
+
+                <button id="clearAllData"
+                    class="bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl transition font-medium flex items-center justify-center gap-2">
+                    <i class="fas fa-trash-alt"></i>
+                    Clear All Data
+                </button>
+
+                <button id="uploadSample"
+                    class="bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl transition font-medium flex items-center justify-center gap-2">
+                    <i class="fas fa-file-import"></i>
+                    Upload Sample
+                </button>
+            </div>
+        </section>
+
+        <!-- System Logs Section -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <i class="fas fa-terminal text-gray-600"></i>
+                System Logs
+            </h2>
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="h-64 overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50 font-mono text-sm" id="systemLogs">
+                    <div class="text-gray-500 text-center py-8">
+                        <i class="fas fa-list-alt text-2xl mb-2 block"></i>
+                        System logs will appear here...
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t mt-12 py-6">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-gray-600 text-sm">
+                <i class="fas fa-shield-alt text-blue-600 mr-1"></i>
+                Legal AI Admin Dashboard - Document Management System
+            </p>
+            <p class="text-gray-500 text-xs mt-1">
+                Upload and manage legal documents | Connected to: <span id="backendUrl">http://localhost:8002</span>
+            </p>
+        </div>
+    </footer>
+
+    <script src="js/admin.js"></script>
+</body>
+
+</html>

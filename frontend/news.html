@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal News & Updates - Legal AI Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/news.css">
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <a href="index.html" class="flex items-center gap-3">
+                        <div
+                            class="bg-gradient-to-br from-blue-600 to-purple-600 text-white w-10 h-10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold text-gray-800">Legal AI Chatbot</h1>
+                            <p class="text-xs text-gray-500">News & Updates</p>
+                        </div>
+                    </a>
+                </div>
+                <div class="flex gap-4">
+                    <a href="index.html#chatbot"
+                        class="text-gray-600 hover:text-blue-600 transition font-medium flex items-center gap-2">
+                        <i class="fas fa-comments"></i> Chat
+                    </a>
+                    <a href="news.html"
+                        class="text-blue-600 font-medium flex items-center gap-2 border-b-2 border-blue-600 pb-1">
+                        <i class="fas fa-newspaper"></i> News
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- Hero Section -->
+        <section class="mb-8">
+            <div
+                class="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl shadow-xl p-8 text-white">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="md:w-2/3">
+                        <h1 class="text-4xl font-bold mb-4">Latest Legal News & Updates</h1>
+                        <p class="text-blue-100 text-lg mb-6">
+                            Stay updated with Supreme Court judgments, law amendments, and legal analysis from trusted
+                            sources.
+                        </p>
+                        <div class="flex gap-4">
+                            <button id="refreshNews"
+                                class="bg-white text-blue-600 px-6 py-3 rounded-xl hover:bg-blue-50 transition font-medium flex items-center gap-2">
+                                <i class="fas fa-sync-alt"></i> Refresh News
+                            </button>
+                            <button id="trendingBtn"
+                                class="bg-white/20 backdrop-blur px-6 py-3 rounded-xl hover:bg-white/30 transition font-medium flex items-center gap-2">
+                                <i class="fas fa-chart-line"></i> Trending Topics
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-6 md:mt-0">
+                        <div class="bg-white/20 backdrop-blur rounded-xl p-6 text-center">
+                            <i class="fas fa-gavel text-5xl mb-3"></i>
+                            <p class="text-2xl font-bold" id="articleCount">0</p>
+                            <p class="text-blue-100">Articles Today</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trending Topics Section (Hidden by default) -->
+        <section id="trendingSection" class="mb-8 hidden">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <i class="fas fa-fire text-orange-500"></i> Trending Legal Topics
+                </h2>
+                <div id="trendingTopics" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Trending topics will be loaded here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- News Grid -->
+        <section class="mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-bolt text-yellow-500"></i> Latest Legal Updates
+                    <span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded"
+                        id="articleCountDisplay">Loading...</span>
+                </h2>
+                <div class="flex gap-3">
+                    <button id="gridView" class="p-2 bg-blue-100 text-blue-600 rounded-lg" title="Grid View">
+                        <i class="fas fa-th-large"></i>
+                    </button>
+                    <button id="listView" class="p-2 bg-gray-100 text-gray-600 rounded-lg" title="List View">
+                        <i class="fas fa-list"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingNews" class="text-center py-12">
+                <div class="inline-block">
+                    <i class="fas fa-spinner loading-spinner text-4xl text-blue-600 mb-4"></i>
+                    <p class="text-gray-600">Fetching latest legal updates...</p>
+                </div>
+            </div>
+
+            <!-- News Articles Grid -->
+            <div id="newsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+                <!-- News cards will be loaded here -->
+            </div>
+
+            <!-- No Results -->
+            <div id="noResults" class="hidden text-center py-12">
+                <i class="fas fa-newspaper text-4xl text-gray-400 mb-4"></i>
+                <h3 class="text-xl font-bold text-gray-600 mb-2">No articles available</h3>
+                <p class="text-gray-500">Check back later for new updates</p>
+            </div>
+
+            <!-- Load More -->
+            <div class="text-center mt-8">
+                <button id="loadMore"
+                    class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 transition font-medium hidden">
+                    <i class="fas fa-plus mr-2"></i> Load More Articles
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-10 mt-12">
+        <div class="container mx-auto px-6">
+            <div class="text-center">
+                <p class="text-sm text-gray-400">
+                    &copy; 2025 Legal AI Chatbot. News aggregated from trusted legal sources.
+                </p>
+                <p class="text-xs text-gray-500 mt-2">
+                    Updated every hour. Last updated: <span id="lastUpdated">Just now</span>
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- News Detail Modal -->
+    <div id="newsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden overflow-y-auto">
+        <div class="min-h-screen px-4 py-8">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-4xl mx-auto">
+                <!-- Modal Header -->
+                <div class="p-6 border-b flex justify-between items-center">
+                    <h3 class="text-2xl font-bold text-gray-800">Article Details</h3>
+                    <button id="closeModal" class="text-gray-500 hover:text-gray-700 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Content -->
+                <div class="p-6 max-h-[70vh] overflow-y-auto">
+                    <div id="modalContent">
+                        <!-- Article content will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="p-6 border-t">
+                    <div class="flex justify-between">
+                        <button id="readFullArticle"
+                            class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-external-link-alt mr-2"></i> Read Full Article
+                        </button>
+                        <button id="shareArticle"
+                            class="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition">
+                            <i class="fas fa-share-alt mr-2"></i> Share
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/news.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,13 @@
+.env
+/backend/.env
+/frontend/.env
+/venv
+venv/
+node_modules/
+__pycache__
+.vscode
+.agent
+
+/data/*
+/chroma_db/*
+/app/rag_context_docs/*

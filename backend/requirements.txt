@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+chromadb
+langchain
+langchain-core
+langchain-text-splitters
+sentence-transformers
+pypdf
+beautifulsoup4
+requests
+aiohttp
+feedparser
+python-multipart
+python-dotenv
+reportlab
+pysqlite3
