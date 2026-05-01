@@ -30,7 +30,7 @@ if (sessionStorage.getItem("adminAuthenticated") !== "true") {
 }
 
 // Initialize
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
     loadSystemStats();
     loadDocumentsList();
     setupEventListeners();
@@ -61,15 +61,15 @@ function setupEventListeners() {
     refreshStats.addEventListener("click", loadSystemStats);
     refreshDocuments.addEventListener("click", loadDocumentsList);
     testBackend.addEventListener("click", testBackendConnection);
-    
+
     if (clearAllData) {
         clearAllData.addEventListener("click", clearAllDocuments);
     }
-    
+
     if (uploadSample) {
         uploadSample.addEventListener("click", uploadSampleDocuments);
     }
-    
+
     logoutBtn.addEventListener("click", logout);
 }
 
@@ -123,13 +123,13 @@ async function loadDocumentsList() {
 
     try {
         const response = await fetch(`${BACKEND_URL}/admin/documents`);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
 
         const data = await response.json();
-        
+
         if (data.status === 'success' && data.documents && data.documents.length > 0) {
             renderDocumentsList(data.documents);
             addLog(`✅ Loaded ${data.documents.length} documents`, 'success');
@@ -152,7 +152,7 @@ async function loadDocumentsList() {
     } catch (error) {
         console.error('Error loading documents:', error);
         addLog(`❌ Error loading documents: ${error.message}`, 'error');
-        
+
         documentsList.innerHTML = `
             <div class="text-center py-8 text-red-500">
                 <i class="fas fa-exclamation-triangle text-4xl mb-3"></i>
@@ -185,48 +185,64 @@ function renderDocumentsList(documents) {
     }
 
     let html = '';
-    
+
     documents.forEach(doc => {
         const name = doc.name || 'Unknown Document';
         const chunks = doc.chunks || 0;
         const filename = doc.filename || 'unknown.pdf';
         const docId = doc.id;
         const uploadDate = doc.upload_date ? new Date(doc.upload_date).toLocaleDateString() : 'Unknown';
-        
+
         // Get a sample preview from the first chunk
         const sample = doc.sample || 'No preview available';
-        
+
         html += `
-            <div class="document-card border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-all">
-                <div class="flex justify-between items-start mb-2">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-file-pdf text-red-500"></i>
-                        <h4 class="font-bold text-gray-800">${escapeHtml(name)}</h4>
-                    </div>
-                    <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">${chunks} chunks</span>
-                </div>
-                <p class="text-xs text-gray-500 mb-2">
-                    <i class="fas fa-file mr-1"></i> ${escapeHtml(filename)}
-                </p>
-                <p class="text-xs text-gray-600 line-clamp-2 mb-3 bg-gray-50 p-2 rounded">
-                    "${escapeHtml(sample)}"
-                </p>
-                <div class="flex justify-between items-center text-xs text-gray-400 mb-3">
-                    <span><i class="fas fa-folder mr-1"></i>ID: ${escapeHtml(docId.substring(0, 8))}...</span>
-                    <span><i class="fas fa-calendar mr-1"></i>${uploadDate}</span>
-                </div>
-                <div class="flex gap-2 mt-2">
-                    <button class="delete-doc-btn text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded hover:bg-red-200 transition flex items-center gap-1" 
-                        data-id="${docId}">
-                        <i class="fas fa-trash"></i> Delete Document
-                    </button>
-                    <button class="view-doc-btn text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-200 transition flex items-center gap-1" 
-                        data-id="${docId}">
-                        <i class="fas fa-eye"></i> Preview
-                    </button>
-                </div>
-            </div>
-        `;
+<div class="document-card border border-gray-200 rounded-xl p-5 bg-white hover:shadow-lg transition">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-3">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-file-alt text-blue-600 text-lg"></i>
+            <h4 class="font-semibold text-gray-800 text-md">${escapeHtml(name)}</h4>
+        </div>
+        <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
+            ${chunks} chunks
+        </span>
+    </div>
+
+    <!-- File info -->
+    <p class="text-xs text-gray-500 mb-2">
+        📁 ${escapeHtml(filename)}
+    </p>
+
+    <!-- Preview -->
+    <div class="text-xs text-gray-600 bg-gray-50 p-2 rounded mb-3 line-clamp-2">
+        ${escapeHtml(sample)}
+    </div>
+
+    <!-- Optional extra line -->
+    <p class="text-xs text-blue-600 font-medium mb-2">
+        📦 This document was split into ${chunks} chunks
+    </p>
+
+    <!-- Meta -->
+    <div class="flex justify-between text-xs text-gray-400 mb-3">
+        <span>🆔 ${docId.slice(0, 6)}...</span>
+        <span>📅 ${uploadDate}</span>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-2">
+        <button class="delete-doc-btn bg-red-100 text-red-600 px-3 py-1 rounded hover:bg-red-200 text-xs" data-id="${docId}">
+            🗑 Delete
+        </button>
+        <button class="view-doc-btn bg-gray-100 text-gray-600 px-3 py-1 rounded hover:bg-gray-200 text-xs" data-id="${docId}">
+            👁 Preview
+        </button>
+    </div>
+
+</div>
+`;
     });
 
     documentsList.innerHTML = html;
@@ -256,22 +272,22 @@ async function clearAllDocuments() {
 
         const data = await response.json();
 
-        if (response.ok) {
+        if (response.ok && data.status === "success") {
             addLog(`✅ ${data.message}`, 'success');
             showNotification('All documents cleared successfully', 'success');
-            
+
             // Refresh lists
             loadDocumentsList();
             loadSystemStats();
         } else {
-            throw new Error(data.detail || 'Failed to clear documents');
+            throw new Error(data.message || 'Failed to clear documents');
         }
+
     } catch (error) {
         addLog(`❌ Error clearing documents: ${error.message}`, 'error');
         showNotification('Failed to clear documents', 'error');
     }
 }
-
 async function deleteDocument(docId) {
     if (!confirm(`Are you sure you want to delete this document?`)) {
         return;
@@ -355,7 +371,7 @@ async function uploadSingleFile(file) {
     `;
 
     uploadProgress.insertAdjacentHTML("afterbegin", progressHtml);
-    
+
     // Animate progress
     const progressElement = document.getElementById(progressId);
     const progressBar = progressElement.querySelector('.progress-bar');
@@ -383,7 +399,7 @@ async function uploadSingleFile(file) {
 
         if (response.ok) {
             const result = await response.json();
-            
+
             setTimeout(() => {
                 progressElement.innerHTML = `
                     <div class="flex items-center gap-3">
@@ -414,7 +430,7 @@ async function uploadSingleFile(file) {
     } catch (error) {
         clearInterval(interval);
         console.error('Upload error:', error);
-        
+
         progressElement.innerHTML = `
             <div class="flex items-center gap-3">
                 <i class="fas fa-times-circle text-red-500 text-xl"></i>
@@ -441,10 +457,10 @@ async function clearAllDocuments() {
         // Get all documents first
         const response = await fetch(`${BACKEND_URL}/admin/documents`);
         const data = await response.json();
-        
+
         if (data.status === 'success' && data.documents) {
             let deletedCount = 0;
-            
+
             // Delete each document
             for (const doc of data.documents) {
                 const docId = doc.id || doc.doc_id;
@@ -455,10 +471,10 @@ async function clearAllDocuments() {
                     deletedCount++;
                 }
             }
-            
+
             addLog(`✅ Cleared ${deletedCount} documents`, 'success');
             showNotification(`Cleared ${deletedCount} documents`, 'success');
-            
+
             // Refresh lists
             loadDocumentsList();
             loadSystemStats();
@@ -493,7 +509,7 @@ async function testBackendConnection() {
                     headers: { 'Content-Type': 'application/json' }
                 };
                 const response = await fetch(endpoint.url, options);
-                
+
                 if (response.ok || response.status === 405) {
                     successCount++;
                     addLog(`✅ ${endpoint.name} - OK`, 'success');

@@ -10,4 +10,7 @@ __pycache__
 
 /data/*
 /chroma_db/*
+backend/chroma_db/
+backend/data/
+*.pdf
 /app/rag_context_docs/*

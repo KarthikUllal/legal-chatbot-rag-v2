@@ -32,15 +32,17 @@ const downloadPdfBtn = document.getElementById("downloadPdf");
 let currentLanguage = "en";
 let isTranslating = false;
 let chatMessages = []; // Store messages for transcript
+let currentDocId = null; // ✅ FIX: Track uploaded doc for scoped queries
 
-// Language mappings
+// ✅ FIX 10: Sync with backend supported_languages (removed ml, added mr + bn)
 const languageNames = {
     'en': 'English',
     'hi': 'Hindi',
     'kn': 'Kannada',
     'ta': 'Tamil',
     'te': 'Telugu',
-    'ml': 'Malayalam'
+    'mr': 'Marathi',
+    'bn': 'Bengali'
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -57,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Other functionality
     clearChatBtn.addEventListener("click", clearChat);
     newChatBtn.addEventListener("click", startNewChat);
-    
+
     // Language dropdown
     languageBtn.addEventListener("click", toggleLanguageDropdown);
     languageOptions.forEach(btn => {
@@ -68,12 +70,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 currentLanguageSpan.textContent = newLang.toUpperCase();
             }
             languageDropdown.classList.add("hidden");
-            
+
             showNotification(`Translating to ${languageNames[newLang] || newLang}...`, "info");
-            
+
             // Translate all messages
             await translateAllMessages();
-            
+
             showNotification(`Language changed to ${languageNames[newLang] || newLang}`, "success");
         });
     });
@@ -93,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Mobile menu toggle
     const mobileMenuBtn = document.getElementById("mobileMenuBtn");
     const mobileMenu = document.getElementById("mobileMenu");
-    
+
     if (mobileMenuBtn && mobileMenu) {
         mobileMenuBtn.addEventListener("click", () => {
             mobileMenu.classList.toggle("hidden");
@@ -107,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Translation function using Google Translate API
 async function translateText(text, targetLang) {
     if (targetLang === 'en' || !text) return text;
-    
+
     try {
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
         const response = await fetch(url);
@@ -122,16 +124,16 @@ async function translateText(text, targetLang) {
 // Translate all messages in chat
 async function translateAllMessages() {
     if (isTranslating) return;
-    
+
     isTranslating = true;
     const messages = chatBox.querySelectorAll('.chat-message');
-    
+
     for (const msg of messages) {
         const textElement = msg.querySelector('p:first-child');
         if (textElement && !textElement.classList.contains('translated')) {
             const originalText = textElement.getAttribute('data-original') || textElement.textContent;
             textElement.setAttribute('data-original', originalText);
-            
+
             if (currentLanguage !== 'en') {
                 const translatedText = await translateText(originalText, currentLanguage);
                 textElement.textContent = translatedText;
@@ -142,7 +144,7 @@ async function translateAllMessages() {
             }
         }
     }
-    
+
     isTranslating = false;
 }
 
@@ -155,7 +157,7 @@ function addMessage(message, isUser) {
         minute: "2-digit"
     });
 
-    // Store message in chatMessages array for transcript
+    // Store message for transcript
     chatMessages.push({
         user_query: isUser ? message : null,
         legal_response: !isUser ? message : null,
@@ -163,10 +165,13 @@ function addMessage(message, isUser) {
     });
 
     if (isUser) {
+        // ✅ USER MESSAGE (no formatting needed)
         msgDiv.innerHTML = `
             <div class="flex gap-3 md:gap-4 justify-end">
                 <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 md:p-4 rounded-2xl rounded-tr-none max-w-[80%] md:max-w-[70%] shadow-md">
-                    <p class="text-sm md:text-base" data-original="${escapeHtml(message)}">${escapeHtml(message)}</p>
+                    <p class="text-sm md:text-base" data-original="${escapeHtml(message)}">
+                        ${escapeHtml(message)}
+                    </p>
                     <p class="text-xs mt-2 text-blue-100 text-right">${time}</p>
                 </div>
                 <div class="bg-gradient-to-br from-gray-700 to-gray-900 text-white w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
@@ -175,13 +180,19 @@ function addMessage(message, isUser) {
             </div>
         `;
     } else {
+        // ✅ BOT MESSAGE (WITH FORMATTING)
         msgDiv.innerHTML = `
             <div class="flex gap-3 md:gap-4">
                 <div class="bg-gradient-to-br from-blue-600 to-purple-600 text-white w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
                     <i class="fas fa-robot text-xs md:text-sm"></i>
                 </div>
                 <div class="bg-white p-3 md:p-4 rounded-2xl rounded-tl-none shadow-sm max-w-[80%] md:max-w-[70%] border border-gray-100">
-                    <p class="text-gray-800 text-sm md:text-base leading-relaxed" data-original="${escapeHtml(message)}">${escapeHtml(message)}</p>
+                    
+                    <div class="text-gray-800 text-sm md:text-base leading-relaxed space-y-2"
+                         data-original="${escapeHtml(message)}">
+                        ${formatMessage(escapeHtml(message))}
+                    </div>
+
                     <p class="text-xs text-gray-500 mt-2 flex items-center gap-2">
                         <i class="fas fa-clock text-xs"></i> ${time}
                     </p>
@@ -191,15 +202,14 @@ function addMessage(message, isUser) {
     }
 
     chatBox.appendChild(msgDiv);
-    
-    // Translate if not English
+
+    // Translate if needed
     if (currentLanguage !== 'en') {
         translateAllMessages();
     }
-    
+
     chatBox.scrollTop = chatBox.scrollHeight;
 }
-
 // Helper function to escape HTML
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -238,21 +248,29 @@ async function handleSend() {
     showTyping();
 
     try {
-        // Use the translation endpoint
-        const response = await fetch(
-            `${BACKEND_URL}/chat-translate?language=${currentLanguage}&question=${encodeURIComponent(message)}&top_k=4&session_id=${sessionId}`,
-            {
-                method: 'POST',
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            }
-        );
+        // ✅ FIX 9: Use JSON body instead of query params (handles long/special-char questions)
+        const payload = {
+            question: message,
+            language: currentLanguage,
+            session_id: sessionId
+        };
+
+        // ✅ FIX 6: Include doc_id if a document was uploaded this session
+        if (currentDocId) {
+            payload.doc_id = currentDocId;
+        }
+
+        const response = await fetch(`${BACKEND_URL}/chat-translate`, {
+            method: 'POST',
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
 
         document.getElementById("typing")?.remove();
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || `Server error ${response.status}`);
         }
 
         const data = await response.json();
@@ -262,36 +280,37 @@ async function handleSend() {
     } catch (err) {
         document.getElementById("typing")?.remove();
         console.error("Chat error:", err);
-        addMessage("⚠️ Server error. Please check if the backend is running and try again.", false);
+        addMessage(`⚠️ ${err.message || "Server error. Please check if the backend is running and try again."}`, false);
     }
 }
 async function uploadDocument() {
     const file = fileUpload.files[0];
     if (!file) return;
 
-    // Check file size (limit to 10MB)
+    // ✅ Only PDF supported (matches backend)
+    const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (fileExt !== '.pdf') {
+        showNotification("Only PDF files are supported", "error");
+        fileUpload.value = '';
+        return;
+    }
+
+    // Check file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
         showNotification("File too large. Maximum size is 10MB", "error");
         fileUpload.value = '';
         return;
     }
 
-    // Check file type
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt'];
-    const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    if (!allowedTypes.includes(fileExt)) {
-        showNotification("Invalid file type. Please upload PDF, DOC, DOCX, or TXT files", "error");
-        fileUpload.value = '';
-        return;
-    }
-
-    // Show upload status
+    // Show upload progress
     uploadStatus.classList.remove("hidden");
     uploadStatus.className = "mt-3 text-sm text-center text-blue-600";
-    uploadStatus.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading document...';
+    uploadStatus.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading and indexing document...';
 
     const formData = new FormData();
     formData.append("file", file);
+
+    addMessage("📄 Uploading and processing document... ⏳", false);
 
     try {
         const res = await fetch(`${BACKEND_URL}/chat-upload`, {
@@ -301,25 +320,40 @@ async function uploadDocument() {
 
         if (res.ok) {
             const data = await res.json();
+
+            // ✅ FIX 3: Store doc_id for scoped querying
+            if (data.doc_id) {
+                currentDocId = data.doc_id;
+                console.log(`📎 Document scoped to doc_id: ${currentDocId}`);
+            }
+
+            const chunkCount = data.chunks || 0;
+
             uploadStatus.className = "mt-3 text-sm text-center text-green-600";
             uploadStatus.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Document uploaded successfully!';
-            addMessage(`📄 Document "${file.name}" uploaded successfully. You can now ask questions about its contents.`, false);
-            
-            // Clear the file input
+
+            addMessage(
+                `✅ Document "${file.name}" uploaded and indexed.\n\n📦 ${chunkCount} sections indexed.\n🔍 All questions will now be answered from this document.\n\nYou can ask me anything about this document!`,
+                false
+            );
+
             fileUpload.value = '';
-            
-            // Hide status after 3 seconds
+
             setTimeout(() => {
                 uploadStatus.classList.add("hidden");
             }, 3000);
+
         } else {
-            throw new Error('Upload failed');
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Upload failed');
         }
+
     } catch (e) {
         uploadStatus.className = "mt-3 text-sm text-center text-red-600";
         uploadStatus.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>Upload failed. Please try again.';
         console.error("Upload error:", e);
-        
+        addMessage(`⚠️ Upload failed: ${e.message}`, false);
+
         setTimeout(() => {
             uploadStatus.classList.add("hidden");
         }, 3000);
@@ -343,15 +377,15 @@ function clearChat() {
                 </div>
             </div>
         `;
-        
+
         // Clear chat messages array
         chatMessages = [];
-        
+
         // Translate if needed
         if (currentLanguage !== 'en') {
             translateAllMessages();
         }
-        
+
         showNotification("Chat cleared", "success");
     }
 }
@@ -360,6 +394,7 @@ function startNewChat() {
     sessionId = "session_" + Date.now();
     localStorage.setItem("legal_chat_session_id", sessionId);
     chatMessages = []; // Clear messages array for new session
+    currentDocId = null; // ✅ Reset doc scope for new session
     clearChat();
     showNotification("New chat started", "success");
 }
@@ -373,7 +408,7 @@ let maximized = false;
 function toggleMaximizeChat() {
     const section = document.getElementById("chatbot");
     const icon = maximizeBtn.querySelector("i");
-    
+
     if (!maximized) {
         section.classList.add("chat-maximized");
         document.body.style.overflow = "hidden";
@@ -436,15 +471,15 @@ function loadConversation(id) {
         chatBox.innerHTML = convo.html;
         sessionId = id;
         localStorage.setItem("legal_chat_session_id", id);
-        
+
         // Rebuild chatMessages array from HTML
         rebuildChatMessages();
-        
+
         // Translate if needed
         if (currentLanguage !== 'en') {
             translateAllMessages();
         }
-        
+
         closeHistory();
         showNotification("Conversation loaded", "success");
     }
@@ -453,16 +488,16 @@ function loadConversation(id) {
 function rebuildChatMessages() {
     chatMessages = [];
     const messages = chatBox.querySelectorAll('.chat-message');
-    
+
     messages.forEach(msg => {
         const isUser = msg.querySelector('.fa-user') !== null;
         const textElement = msg.querySelector('p:first-child');
         const timeElement = msg.querySelector('.text-xs:last-child');
-        
+
         if (textElement) {
             const text = textElement.getAttribute('data-original') || textElement.textContent;
             const time = timeElement ? timeElement.textContent.trim() : '';
-            
+
             if (isUser) {
                 chatMessages.push({
                     user_query: text,
@@ -483,14 +518,14 @@ function rebuildChatMessages() {
 function saveCurrentChat() {
     const html = chatBox.innerHTML;
     let history = JSON.parse(localStorage.getItem("chatHistory") || "[]");
-    
+
     // Get first user message as preview
     const previewMatch = html.match(/<p[^>]*data-original="([^"]*)"[^>]*>/);
     const preview = previewMatch ? previewMatch[1].substring(0, 50) + "..." : "Conversation " + new Date().toLocaleString();
-    
+
     // Remove existing session if present
     history = history.filter(h => h.id !== sessionId);
-    
+
     history.unshift({
         id: sessionId,
         html: html,
@@ -552,17 +587,17 @@ function downloadChatTranscript() {
 
     try {
         showNotification("Generating transcript...", "info");
-        
+
         const lines = [];
         const date = new Date();
-        const formattedDate = date.toLocaleString('en-IN', { 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit' 
+        const formattedDate = date.toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
         });
-        
+
         // Header
         lines.push("=".repeat(80));
         lines.push(" ".repeat(20) + "LEGAL AI CHATBOT – CONSULTATION TRANSCRIPT");
@@ -572,24 +607,24 @@ function downloadChatTranscript() {
         lines.push(`Session ID      : ${sessionId}`);
         lines.push(`Language        : ${languageNames[currentLanguage] || 'English'}`);
         lines.push("=".repeat(80));
-        
+
         // Get all messages
         const messages = chatBox.querySelectorAll('.chat-message');
         let queryCount = 0;
         let currentQuery = null;
         let currentResponse = null;
-        
+
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
             const isUser = msg.querySelector('.fa-user') !== null;
             const textElement = msg.querySelector('p:first-child');
             const timeElement = msg.querySelector('.text-xs:last-child');
-            
+
             if (!textElement) continue;
-            
+
             const text = textElement.getAttribute('data-original') || textElement.textContent;
             const time = timeElement ? timeElement.textContent.trim() : '';
-            
+
             if (isUser) {
                 // Save previous query-response pair if exists
                 if (currentQuery && currentResponse) {
@@ -597,22 +632,22 @@ function downloadChatTranscript() {
                     lines.push(`\n${"=".repeat(80)}`);
                     lines.push(`CONSULTATION QUERY ${queryCount}`.padStart(45).padEnd(80));
                     lines.push(`${"=".repeat(80)}`);
-                    
+
                     lines.push("\n📝 CLIENT QUERY:");
                     lines.push("-".repeat(40));
                     lines.push(currentQuery.text);
                     lines.push(`\n⏰ Time: ${currentQuery.time}`);
-                    
+
                     lines.push("\n⚖️ LEGAL OPINION:");
                     lines.push("-".repeat(40));
                     lines.push(currentResponse.text);
                     lines.push(`\n⏰ Time: ${currentResponse.time}`);
-                    
+
                     lines.push("\n⚠️ DISCLAIMER:");
                     lines.push("-".repeat(40));
                     lines.push("This response is generated by an AI legal assistant for informational purposes only and does not constitute professional legal advice. Please consult with a qualified legal professional for specific legal guidance.");
                 }
-                
+
                 // Start new query
                 currentQuery = { text, time };
                 currentResponse = null;
@@ -621,51 +656,51 @@ function downloadChatTranscript() {
                 currentResponse = { text, time };
             }
         }
-        
+
         // Add last query-response if exists
         if (currentQuery && currentResponse) {
             queryCount++;
             lines.push(`\n${"=".repeat(80)}`);
             lines.push(`CONSULTATION QUERY ${queryCount}`.padStart(45).padEnd(80));
             lines.push(`${"=".repeat(80)}`);
-            
+
             lines.push("\n📝 CLIENT QUERY:");
             lines.push("-".repeat(40));
             lines.push(currentQuery.text);
             lines.push(`\n⏰ Time: ${currentQuery.time}`);
-            
+
             lines.push("\n⚖️ LEGAL OPINION:");
             lines.push("-".repeat(40));
             lines.push(currentResponse.text);
             lines.push(`\n⏰ Time: ${currentResponse.time}`);
-            
+
             lines.push("\n⚠️ DISCLAIMER:");
             lines.push("-".repeat(40));
             lines.push("This response is generated by an AI legal assistant for informational purposes only and does not constitute professional legal advice. Please consult with a qualified legal professional for specific legal guidance.");
         }
-        
+
         // Footer
         lines.push(`\n${"=".repeat(80)}`);
         lines.push(" ".repeat(35) + "END OF TRANSCRIPT");
         lines.push("=".repeat(80));
         lines.push("\n* This document is for informational purposes only.");
         lines.push("* Not a substitute for professional legal advice.");
-        
+
         const content = lines.join('\n');
-        
+
         // Create and download file
         const blob = new Blob([content], { type: 'text/plain' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `legal_consultation_${sessionId}_${date.toISOString().slice(0,10)}.txt`;
+        a.download = `legal_consultation_${sessionId}_${date.toISOString().slice(0, 10)}.txt`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        
+
         showNotification("Transcript downloaded successfully", "success");
-        
+
     } catch (error) {
         console.error("Download error:", error);
         showNotification("Failed to download transcript", "error");
@@ -681,32 +716,32 @@ function downloadChatTranscriptPDF() {
 
     try {
         showNotification("Generating PDF transcript...", "info");
-        
+
         const date = new Date();
-        const formattedDate = date.toLocaleString('en-IN', { 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit' 
+        const formattedDate = date.toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
         });
-        
+
         // Collect messages
         const conversations = [];
         const messages = chatBox.querySelectorAll('.chat-message');
         let currentQuery = null;
-        
+
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
             const isUser = msg.querySelector('.fa-user') !== null;
             const textElement = msg.querySelector('p:first-child');
             const timeElement = msg.querySelector('.text-xs:last-child');
-            
+
             if (!textElement) continue;
-            
+
             const text = textElement.getAttribute('data-original') || textElement.textContent;
             const time = timeElement ? timeElement.textContent.trim() : '';
-            
+
             if (isUser) {
                 currentQuery = { text, time };
             } else if (currentQuery) {
@@ -717,7 +752,7 @@ function downloadChatTranscriptPDF() {
                 currentQuery = null;
             }
         }
-        
+
         // Generate HTML
         const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -955,25 +990,25 @@ function downloadChatTranscriptPDF() {
     </script>
 </body>
 </html>`;
-        
+
         // Download as HTML file
         const blob = new Blob([htmlContent], { type: 'text/html' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `legal_consultation_${sessionId}_${date.toISOString().slice(0,10)}.html`;
+        a.download = `legal_consultation_${sessionId}_${date.toISOString().slice(0, 10)}.html`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        
+
         showNotification("HTML transcript generated. Open and use Print (Ctrl+P) to save as PDF.", "success");
-        
+
         // Open in new window for printing
         const printWindow = window.open();
         printWindow.document.write(htmlContent);
         printWindow.document.close();
-        
+
     } catch (error) {
         console.error("PDF generation error:", error);
         showNotification("Failed to generate transcript", "error");
@@ -984,10 +1019,10 @@ async function loadNewsPreview() {
     try {
         const res = await fetch(`${BACKEND_URL}/news`);
         if (!res.ok) throw new Error('News fetch failed');
-        
+
         const data = await res.json();
         const container = document.getElementById("newsPreview");
-        
+
         if (data.articles && data.articles.length > 0) {
             container.innerHTML = "";
             data.articles.slice(0, 4).forEach((a, index) => {
@@ -1014,6 +1049,27 @@ async function loadNewsPreview() {
             </div>
         `;
     }
+}
+
+function formatMessage(text) {
+    if (!text) return "";
+
+    // Section headings
+    text = text.replace(/📌 Section:/g, `<div class="mt-2 font-semibold text-blue-700">📌 Section:</div>`);
+    text = text.replace(/📖 Explanation:/g, `<div class="mt-3 font-semibold text-purple-700">📖 Explanation:</div>`);
+    text = text.replace(/⚖️ Key Points:/g, `<div class="mt-3 font-semibold text-green-700">⚖️ Key Points:</div>`);
+    text = text.replace(/🛠 Practical Steps:/g, `<div class="mt-3 font-semibold text-orange-700">🛠 Practical Steps:</div>`);
+
+    // Bullet points
+    text = text.replace(/- (.*)/g, `<div class="ml-4">• $1</div>`);
+
+    // Numbered steps
+    text = text.replace(/(\d+\.\s.*)/g, `<div class="ml-4">$1</div>`);
+
+    // Line breaks
+    text = text.replace(/\n/g, "<br>");
+
+    return text;
 }
 
 // Add missing functions to global scope for onclick handlers

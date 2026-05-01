@@ -45,3 +45,19 @@ def split_chunks(text):
     )
 
     return splitter.split_text(text)
+
+
+import re
+
+def extract_section_info(text):
+    """
+    Extract section number and title from chunk
+    Example: 'Section 302 - Punishment for murder'
+    """
+    pattern = r"(Section\s+\d+[A-Za-z]?)\s*[-:]\s*(.*)"
+    match = re.search(pattern, text, re.IGNORECASE)
+
+    if match:
+        return match.group(1), match.group(2)
+
+    return "Unknown Section", "No Title"

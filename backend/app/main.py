@@ -5,7 +5,8 @@ from pathlib import Path
 import shutil
 import io
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
+from pydantic import BaseModel
 
 # ReportLab for PDF generation
 from reportlab.lib.pagesizes import A4
@@ -46,7 +47,7 @@ app.add_middleware(
 )
 
 # Initialize RAG engine
-engine = RAGEngine()
+from .core_engine import engine
 
 # Include additional routers
 app.include_router(news_router)
@@ -60,13 +61,25 @@ app.include_router(admin_router)
 def chat(req: ChatRequest):
     """
     Ask a legal question to the chatbot.
+    Supports: language translation, document-scoped queries.
     """
-    answer = engine.query(req.question)
-    
-    # Store conversation with session_id
+    # ✅ FIX 6: Pass doc_id for document-scoped vector search
+    answer = engine.query(
+        req.question,
+        session_id=req.session_id,
+        doc_id=req.doc_id
+    )
+
+    # ✅ FIX 2: Translate response if language is not English
+    language = req.language or "en"
+    if language != "en":
+        from .translation import translator
+        answer = translator.translate_legal_response(answer, language)
+
+    # Store conversation
     if req.session_id:
-        engine.store_conversation(req.session_id, req.question, answer)
-    
+        engine.store_conversation(req.session_id, req.question, answer, language)
+
     return {"answer": answer}
 
 
@@ -79,6 +92,8 @@ async def chat_upload(file: UploadFile = File(...)):
     Upload PDF or TXT file during chat.
     Document will be chunked and added to vector database.
     """
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
     data_dir = Path(DATA_DIR)
     data_dir.mkdir(exist_ok=True)
@@ -88,11 +103,17 @@ async def chat_upload(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    engine.ingest_file(str(file_path))
+    # ✅ FIX 3: Capture result dict so we can return chunk count to frontend
+    result = engine.ingest_file(str(file_path))
+
+    if not result or result.get("status") == "error":
+        raise HTTPException(status_code=500, detail=result.get("message", "Ingestion failed"))
 
     return {
         "status": "indexed",
-        "filename": file.filename
+        "filename": file.filename,
+        "chunks": result.get("chunks", 0),
+        "doc_id": result.get("doc_id", ""),
     }
 
 
@@ -387,40 +408,44 @@ async def download_transcript_pdf(session_id: str):
 # TRANSLATION CHAT ENDPOINT
 # ============================================
 
-@app.post("/chat-translate", response_model=ChatResponse)
-async def chat_with_translation(
-    question: str, 
-    language: str = "en", 
-    top_k: int = 4, 
+class TranslateRequest(BaseModel):
+    question: str
+    language: str = "en"
     session_id: str = "default"
-):
+    doc_id: Optional[str] = None
+
+
+@app.post("/chat-translate", response_model=ChatResponse)
+async def chat_with_translation(req: TranslateRequest):
     """
-    Chat endpoint with language translation
-    - question: User's question in any language
-    - language: Language code for response (en, hi, kn, ta, te)
-    - top_k: Number of sources to use
-    - session_id: Session identifier
+    Chat endpoint with language translation.
+    ✅ FIX 9: Accepts JSON body (not query params) to support long/special-char questions.
+    Supports: en, hi, kn, ta, te, mr, bn
     """
     try:
-        logger.info(f"Translation chat: '{question[:50]}...' in {language}")
+        logger.info(f"Translation chat: '{req.question[:50]}' → language={req.language}")
 
-        # Get answer from RAG engine
-        answer = engine.query(question)
-        
+        # Get answer from RAG engine (optionally scoped to a doc)
+        answer = engine.query(req.question, doc_id=req.doc_id)
+
         # Translate if language is not English
-        if language != "en":
-            answer = translator.translate_legal_response(answer, language)
-        
-        # Store conversation with session_id
-        if session_id:
-            engine.store_conversation(session_id, question, answer, language)
-        
-        logger.info(f"Generated response in {translator.supported_languages.get(language, language)}")
+        if req.language != "en":
+            answer = translator.translate_legal_response(answer, req.language)
+
+        # Store conversation
+        if req.session_id:
+            engine.store_conversation(req.session_id, req.question, answer, req.language)
+
+        logger.info(f"✅ Response in {translator.supported_languages.get(req.language, req.language)}")
         return {"answer": answer}
 
     except Exception as e:
         logger.error(f"Translation chat failed: {e}")
         error_msg = f"Failed to process question: {str(e)}"
-        if language != "en":
-            error_msg = translator.translate_legal_response(error_msg, language)
+        if req.language != "en":
+            try:
+                error_msg = translator.translate_legal_response(error_msg, req.language)
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=error_msg)
+# ✅ FIX 4: Duplicate /admin/clear-all removed — handled by admin_routes.py

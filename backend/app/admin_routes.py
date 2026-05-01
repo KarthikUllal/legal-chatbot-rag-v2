@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
 
 # Global engine instance
-engine = RAGEngine()
-
+from .core_engine import engine
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
 @router.post("/upload")
@@ -66,14 +65,14 @@ async def upload_doc(request: Request, file: UploadFile = File(...)):
                 "source_type": "pdf"
             }
             
-            success = engine.ingest_file(
+            result = engine.ingest_file(
                 file_path=str(file_path),
                 doc_id=doc_id,
                 act_name=act_name,
                 metadata=metadata
             )
             
-            if not success:
+            if not result:
                 raise Exception("Ingestion failed")
                 
         except Exception as e:
@@ -88,6 +87,7 @@ async def upload_doc(request: Request, file: UploadFile = File(...)):
             "filename": file.filename,
             "doc_id": doc_id,
             "act_name": act_name,
+            "chunks": result["chunks"],
             "size": file_size
         }
         
@@ -114,7 +114,7 @@ async def list_documents():
         for i, (metadata, doc) in enumerate(zip(results["metadatas"], results["documents"])):
             if metadata:
                 doc_id = metadata.get("doc_id", f"doc_{i}")
-                act_name = metadata.get("act", "Unknown Document")
+                act_name = metadata.get("act") or metadata.get("filename") or "Unknown Document"
                 filename = metadata.get("filename", "unknown.pdf")
                 upload_date = metadata.get("upload_date", "Unknown")
                 
