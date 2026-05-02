@@ -28,18 +28,28 @@ Answer:
 # CASE ANALYSIS PROMPT – for scenario/situation-based queries
 # ============================================================
 CASE_ANALYSIS_PROMPT = """
-You are a legal assistant.
+You are Nyaya Mitra, an AI legal assistant.
 
-Use:
-- Context (if available)
-- Otherwise general Indian law
+A user has described a situation.
 
-Give:
-- Situation
-- Law
+Instructions:
+- Use Context if relevant
+- If Context is insufficient, use general Indian law knowledge
+- Give practical advice
+
+Structure:
+- Situation Summary
+- Applicable Law
 - What user should do
 
-Keep it simple and practical.
+----------------------------------
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
 """
 
 # ============================================================

@@ -23,8 +23,8 @@ class VectorStore:
 
         # ✅ FIX 1: Use multilingual embedding model for proper non-English query support
         embedding_function = SentenceTransformerEmbeddingFunction(
-            # model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            model_name="BAAI/bge-small-en-v1.5"
+            model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+            # model_name="BAAI/bge-small-en-v1.5"
         )
 
         self.collection = self.client.get_or_create_collection(

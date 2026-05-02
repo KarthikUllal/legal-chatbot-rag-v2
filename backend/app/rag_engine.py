@@ -10,6 +10,17 @@ from .provider import NVIDIAProvider
 from .prompts import LEGAL_QA_PROMPT, CASE_ANALYSIS_PROMPT, SUMMARY_PROMPT
 from .ingestion import load_pdf, split_chunks, load_url
 
+from langchain.schema import Document, BaseRetriever
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.prompts import PromptTemplate
+from langchain.chains import ConversationalRetrievalChain
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage
+from pydantic import Field
+from typing import Any
+from langchain_core.outputs import ChatResult, ChatGeneration
+
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -62,13 +73,136 @@ SUMMARY_KEYWORDS = [
     "संक्षेप", "सारांश", "ಸಾರಾಂಶ", "சுருக்கம்",
 ]
 
+class NVIDIAChatModel(BaseChatModel):
+    provider: Any = Field(default=None)
+
+    def __init__(self, provider):
+        super().__init__()
+        object.__setattr__(self, "provider", provider)
+
+    def _generate(self, messages, stop=None):
+        prompt = messages[-1].content
+
+        response = self.provider.generate(prompt)
+
+        return ChatResult(
+            generations=[
+                ChatGeneration(message=AIMessage(content=response))
+            ]
+        )
+
+    @property
+    def _llm_type(self):
+        return "nvidia_chat"
+
+
+class ChromaRetriever(BaseRetriever):
+    vstore: Any = Field(default=None)
+    doc_id: Any = Field(default=None)
+
+    def __init__(self, vstore, doc_id=None):
+        super().__init__()
+        object.__setattr__(self, "vstore", vstore)
+        object.__setattr__(self, "doc_id", doc_id)
+
+    def _get_relevant_documents(self, query):
+        results = self.vstore.query(query, k=5, doc_id=self.doc_id)
+        docs = results.get("documents", [[]])[0]
+        return [Document(page_content=d) for d in docs if d]
+
+    async def _aget_relevant_documents(self, query):
+        return self._get_relevant_documents(query)
+
 
 class RAGEngine:
     def __init__(self):
         self.vstore = VectorStore()
-        self.llm = NVIDIAProvider()
-        self.conversations: Dict[str, List[Dict]] = {}
-        self.intent_cache: Dict[str, str] = {}
+
+        self.provider = NVIDIAProvider()
+        self.llm = NVIDIAChatModel(self.provider)
+
+        self.memory = ConversationBufferWindowMemory(
+            k=2,
+            memory_key="chat_history",
+            return_messages=True
+        )
+
+        # self.prompt = PromptTemplate(
+        #     input_variables=["context", "question", "chat_history"],
+        #     template="""
+        # You are Nyaya Mitra, an Indian legal assistant.
+
+        # STRICT RULES:
+        # 1. Answer ONLY using the provided Context.
+        # 2. Do NOT use outside knowledge.
+        # 3. Do NOT guess or assume anything.
+        # 4. If answer is not in Context, say:
+        # "I could not find this information in the provided legal documents."
+
+        # RESPONSE STYLE:
+        # - Clear and simple
+        # - No extra explanation
+        # - No assumptions
+
+        # Context:
+        # {context}
+
+        # Chat History:
+        # {chat_history}
+
+        # Question:
+        # {question}
+
+        # Answer:
+        # """
+        # )
+        self.prompt = PromptTemplate(
+    input_variables=["context", "question", "chat_history"],
+    template="""
+You are Nyaya Mitra, an Indian legal assistant.
+
+RULES:
+
+1. Use Context as PRIMARY source.
+2. If Context is insufficient → use general legal knowledge.
+   → mention: "Based on general legal knowledge"
+
+3. STRICT:
+   - Do NOT invent section numbers
+   - Do NOT guess legal provisions
+   - If section not in Context → DO NOT mention it
+   - Do NOT mention Chunk or internal references
+
+4. Law priority:
+   - Cyber issues → IT Act first
+   - Criminal offences → BNS
+
+5. Response must follow structure:
+   - Applicable Laws
+   - Offences
+   - Steps to take
+   - Rights (if relevant)
+
+6. Language:
+   - Keep answer natural
+   - Avoid incorrect translation of legal terms
+
+Context:
+{context}
+
+Chat History:
+{chat_history}
+
+Question:
+{question}
+
+Answer:
+"""
+)
+        self.chain = None
+        self._last_doc_id = None
+        self.intent_cache = {}
+        self.conversations = {}
 
     # ──────────────────────────────────────────
     # Query Enhancement
@@ -247,16 +381,7 @@ class RAGEngine:
 
         q = question.strip()
 
-        # ── Conversation memory ──
-        history_text = ""
-
-        if session_id and session_id in self.conversations:
-            history = self.conversations[session_id][-2:]
-
-            for h in history:
-                history_text += f"User: {h['user_query']}\nAssistant: {h['legal_response']}\n"
-
-        # ── Intent detection ──
+        # basic intents (keep yours)
         query_type = self.detect_query_type(q)
 
         if query_type == "greeting":
@@ -266,107 +391,30 @@ class RAGEngine:
             return "🙏 You're welcome! Feel free to ask more legal questions."
 
         if query_type == "smalltalk":
-            return "I'm Nyaya Mitra 🤖 — I can help with Indian laws, documents, and legal scenarios."
+            return "I'm Nyaya Mitra 🤖 — I can help with Indian laws and legal queries."
 
-        # 🔥 FOLLOW-UP DETECTION (NEW)
-        FOLLOW_UP_WORDS = ["explain", "more", "next", "procedure", "steps"]
-        is_followup = any(word in q.lower() for word in FOLLOW_UP_WORDS)
+        # 🔹 create retriever using your Chroma
+        retriever = ChromaRetriever(self.vstore, doc_id=doc_id)
 
-        # 🔥 IMPROVED SEARCH QUERY (NEW)
-        search_query = q
-
-        if history_text:
-            search_query = history_text + " " + q
-
-        enhanced_query = self.enhance_query(search_query)
-
-        # 🔥 FIXED RETRIEVAL (IMPORTANT)
-        if is_followup and history_text:
-            docs = [history_text]   # reuse previous context
-        else:
-            results = self.vstore.query(enhanced_query, k=8, doc_id=doc_id)
-            docs = results.get("documents", [[]])[0]
-
-        docs = [d.strip() for d in docs if d and len(d.strip()) > 120]
-
-        # ── FALLBACK ──
-        if not docs:
-            try:
-                fallback_prompt = f"""
-    You are a legal assistant.
-
-    Answer using general Indian law knowledge.
-    Prefer Bharatiya Nyaya Sanhita over IPC.
-
-    Conversation:
-    {history_text}
-
-    User:
-    {q}
-
-    Answer clearly and briefly.
-    """
-                answer = self.llm.generate(fallback_prompt).strip()
-
-                import re
-                answer = re.sub(r"\s{2,}", " ", answer).strip()
-
-                if session_id:
-                    self.store_conversation(session_id, q, answer)
-
-                return answer
-
-            except:
-                return "⚠️ Unable to process your request."
-
-        # ── Re-rank ──
-        docs = self.rerank_chunks(q, docs)
-
-        # ── Prompt routing ──
-        if query_type == "summary":
-            context_text = "\n\n".join(docs[:2])[:800]
-
-            prompt = SUMMARY_PROMPT.format(
-                context=context_text
+        # 🔹 recreate chain if doc_id changed
+        if self.chain is None or self._last_doc_id != doc_id:
+            self.chain = ConversationalRetrievalChain.from_llm(
+                llm=self.llm,
+                retriever=retriever,
+                memory=self.memory,
+                combine_docs_chain_kwargs={"prompt": self.prompt}
             )
+            self._last_doc_id = doc_id
 
-        elif query_type == "case":
-            context_text = "\n\n".join(docs[:2])[:900]
-
-            prompt = CASE_ANALYSIS_PROMPT.format(
-                context=context_text,
-                question=f"{history_text}\nUser: {q}"
-            )
-
-        else:
-            context_text = "\n\n".join(docs[:2])[:900]
-
-            prompt = LEGAL_QA_PROMPT.format(
-                context=context_text,
-                question=f"{history_text}\nUser: {q}"
-            )
-
-        # ── LLM call ──
         try:
-            answer = self.llm.generate(prompt).strip()
-
-        except RuntimeError as e:
-            logger.error(f"LLM generation failed: {e}")
-            return f"⚠️ {str(e)}"
-
+            result = self.chain.invoke({"question": q})
+            answer = result.get("answer", "").strip()
         except Exception as e:
-            logger.error(f"Unexpected error during generation: {e}")
-            return "⚠️ An unexpected error occurred."
-
-        # ── Clean output ──
-        import re
-        answer = re.sub(r"Chunk\s*\d+[:\-]?", "", answer)
-        answer = re.sub(r"\(\d+\)", "", answer)
-        answer = re.sub(r"\s{2,}", " ", answer).strip()
-
-        # ── Store conversation ──
-        if session_id:
-            self.store_conversation(session_id, q, answer)
+            logger.error(f"LLM error: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"⚠️ ERROR: {str(e)}"
+            # return "⚠️ Unable to process your request."
 
         return answer
     # ──────────────────────────────────────────
