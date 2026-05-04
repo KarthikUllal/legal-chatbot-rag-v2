@@ -448,4 +448,3 @@ async def chat_with_translation(req: TranslateRequest):
             except Exception:
                 pass
         raise HTTPException(status_code=500, detail=error_msg)
-# ✅ FIX 4: Duplicate /admin/clear-all removed — handled by admin_routes.py

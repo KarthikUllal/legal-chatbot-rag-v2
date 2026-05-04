@@ -1,5 +1,4 @@
-# ✅ Patch: Override system sqlite3 with pysqlite3 (required for ChromaDB on Python 3.9 / Windows)
-# ChromaDB requires sqlite3 >= 3.35.0 which isn't available in Python 3.9's stdlib on Windows.
+
 try:
     import pysqlite3 as _pysqlite3
     import sys

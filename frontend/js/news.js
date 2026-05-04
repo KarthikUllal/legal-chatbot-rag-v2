@@ -1,4 +1,5 @@
 // API Configuration
+//news.js
 const API_BASE = "http://localhost:8003"; // Make sure this matches your backend port
 
 // State management
@@ -36,7 +37,7 @@ const shareArticleBtn = document.getElementById('shareArticle');
 let currentArticle = null;
 
 // Initialize
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     await initializeNewsPage();
     setupEventListeners();
 });
@@ -215,13 +216,13 @@ function createNewsCard(article) {
     `;
 
     // Add event listeners
-    card.querySelector('.read-more-btn').addEventListener('click', function() {
+    card.querySelector('.read-more-btn').addEventListener('click', function () {
         openArticleModal(article.id);
     });
 
     const shareBtn = card.querySelector('.share-btn');
     if (shareBtn) {
-        shareBtn.addEventListener('click', function() {
+        shareBtn.addEventListener('click', function () {
             shareArticle(article);
         });
     }
@@ -450,7 +451,7 @@ function escapeHtml(text) {
 
 function setupEventListeners() {
     // Refresh news
-    refreshNewsBtn.addEventListener('click', async() => {
+    refreshNewsBtn.addEventListener('click', async () => {
         try {
             showLoading(true);
             await loadNews();

@@ -409,6 +409,9 @@ Answer:
         try:
             result = self.chain.invoke({"question": q})
             answer = result.get("answer", "").strip()
+
+            if session_id:
+                self.store_conversation(session_id, q, answer)
         except Exception as e:
             logger.error(f"LLM error: {e}")
             import traceback
