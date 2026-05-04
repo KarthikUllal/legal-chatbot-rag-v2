@@ -88,10 +88,7 @@ def chat(req: ChatRequest):
 # -------------------------------
 @app.post("/chat-upload")
 async def chat_upload(file: UploadFile = File(...)):
-    """
-    Upload PDF or TXT file during chat.
-    Document will be chunked and added to vector database.
-    """
+
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
@@ -103,8 +100,8 @@ async def chat_upload(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # ✅ FIX 3: Capture result dict so we can return chunk count to frontend
-    result = engine.ingest_file(str(file_path))
+    # user document → FAISS
+    result = engine.ingest_user_document(str(file_path))
 
     if not result or result.get("status") == "error":
         raise HTTPException(status_code=500, detail=result.get("message", "Ingestion failed"))
@@ -112,10 +109,8 @@ async def chat_upload(file: UploadFile = File(...)):
     return {
         "status": "indexed",
         "filename": file.filename,
-        "chunks": result.get("chunks", 0),
-        "doc_id": result.get("doc_id", ""),
+        "chunks": result.get("chunks", 0)
     }
-
 
 # -------------------------------
 # Ingest URL content

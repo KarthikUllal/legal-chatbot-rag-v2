@@ -21,6 +21,10 @@ from typing import Any
 from langchain_core.outputs import ChatResult, ChatGeneration
 
 
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -96,18 +100,36 @@ class NVIDIAChatModel(BaseChatModel):
         return "nvidia_chat"
 
 
-class ChromaRetriever(BaseRetriever):
+from langchain.schema import Document
+from langchain_core.retrievers import BaseRetriever
+from pydantic import Field
+from typing import Any
+
+
+class HybridRetriever(BaseRetriever):
     vstore: Any = Field(default=None)
+    user_vstore: Any = Field(default=None)
     doc_id: Any = Field(default=None)
 
-    def __init__(self, vstore, doc_id=None):
+    def __init__(self, vstore, user_vstore=None, doc_id=None):
         super().__init__()
         object.__setattr__(self, "vstore", vstore)
+        object.__setattr__(self, "user_vstore", user_vstore)
         object.__setattr__(self, "doc_id", doc_id)
 
     def _get_relevant_documents(self, query):
+        print("DEBUG → user_vstore exists:", self.user_vstore is not None)
+        # PRIORITY 1 → user uploaded doc
+        if self.user_vstore:
+            docs = self.user_vstore.similarity_search(query, k=5)
+            print("USER DOC FOUND — Returning")
+            return docs
+
+        print("USING CHROMA")
+        # ELSE → legal database
         results = self.vstore.query(query, k=5, doc_id=self.doc_id)
         docs = results.get("documents", [[]])[0]
+
         return [Document(page_content=d) for d in docs if d]
 
     async def _aget_relevant_documents(self, query):
@@ -117,6 +139,13 @@ class ChromaRetriever(BaseRetriever):
 class RAGEngine:
     def __init__(self):
         self.vstore = VectorStore()
+
+        #for user doc temp storage
+        self.user_vstore = None
+
+        self.embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
 
         self.provider = NVIDIAProvider()
         self.llm = NVIDIAChatModel(self.provider)
@@ -162,28 +191,38 @@ class RAGEngine:
 You are Nyaya Mitra, an AI legal assistant for Indian law.
 
 RULES:
-1. First use the provided Context.
-2. If Context is not enough, use general Indian legal knowledge.
-3. Prefer Bharatiya Nyaya Sanhita (BNS) over IPC when relevant.
-4. Do NOT say "I could not find..." unless absolutely necessary.
+- First use the provided Context.
+- If Context is not enough, use general Indian legal knowledge.
+- Prefer Bharatiya Nyaya Sanhita (BNS) over IPC when relevant.
+- Do NOT show reasoning steps.
+- Do NOT write "Step 1", "Step 2", etc.
+- Do NOT say "The best answer is".
+-Give response in proffesional way like real lawyer would respond.
 
-RESPONSE TYPES:
+RESPONSE STYLE:
 
-👉 If question is factual:
-- Give clear explanation
+👉 If the question is factual:
+- Give a short, clear, direct answer.
+- Mention section or law if relevant.
 
-👉 If question is a situation / "what should I do":
-- Give structured legal guidance:
+👉 If the question is a situation or "what should I do":
+- Give structured guidance in this format:
 
-Format:
-1. Applicable Law
-2. What the law says
-3. What the person should do (step-by-step)
+Applicable Law:
+...
+
+Explanation:
+...
+
+What you should do:
+• Step 1
+• Step 2
+• Step 3
 
 Keep response:
 - Clear
-- Practical
 - Professional
+- Concise
 
 Context:
 {context}
@@ -201,6 +240,38 @@ Answer:
         self._last_doc_id = None
         self.intent_cache = {}
         self.conversations = {}
+
+    #to ingest user uploaded docu
+    def ingest_user_document(self, file_path: str):
+        from langchain_community.document_loaders import PyPDFLoader
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        from langchain_community.vectorstores import FAISS
+
+        loader = PyPDFLoader(file_path)
+        documents = loader.load()
+
+        print("DOCUMENTS LOADED:", len(documents))
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=800,
+            chunk_overlap=100
+        )
+
+        docs = splitter.split_documents(documents)
+
+        print("CHUNKS:", len(docs))
+
+        self.user_vstore = FAISS.from_documents(
+            docs,
+            self.embeddings
+        )
+
+        print("USER VSTORE CREATED:", self.user_vstore is not None)
+
+        return {
+            "status": "success",
+            "chunks": len(docs)
+        }
 
     # ──────────────────────────────────────────
     # Query Enhancement
@@ -392,7 +463,11 @@ Answer:
             return "I'm Nyaya Mitra 🤖 — I can help with Indian laws and legal queries."
 
         # 🔹 create retriever using your Chroma
-        retriever = ChromaRetriever(self.vstore, doc_id=doc_id)
+        retriever = HybridRetriever(
+            vstore=self.vstore,
+            user_vstore=self.user_vstore,
+            doc_id=doc_id
+        )
 
         # 🔹 recreate chain if doc_id changed
         if self.chain is None or self._last_doc_id != doc_id:
