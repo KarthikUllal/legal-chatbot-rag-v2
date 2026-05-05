@@ -1,3 +1,4 @@
+#news_routes.py
 from fastapi import APIRouter
 from .news_service import get_news
 
